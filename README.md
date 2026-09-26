@@ -1,3 +1,5 @@
+![image](design/screenshoots/preview.png)
+
 # max-vpn
 
 VPN client for macOS. Supports WireGuard and VLESS.

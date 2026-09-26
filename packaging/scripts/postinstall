@@ -1,0 +1,10 @@
+#!/bin/bash
+set -e
+
+PLIST=/Library/LaunchDaemons/de.max-tsx.maxvpn.daemon.plist
+
+launchctl bootout system "$PLIST" 2>/dev/null || true
+launchctl bootstrap system "$PLIST"
+launchctl enable system/de.max-tsx.maxvpn.daemon 2>/dev/null || true
+
+exit 0

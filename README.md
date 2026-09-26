@@ -1,5 +1,3 @@
-![image](design/screenshoots/preview.png)
-
 # max-vpn
 
 VPN client for macOS. Supports WireGuard and VLESS.
@@ -37,6 +35,9 @@ make uninstall-daemon && sudo rm -rf /Applications/max-vpn.app
 sudo pfctl -a com.apple/maxvpn -F all
 sudo networksetup -setdnsservers Wi-Fi Empty
 ```
+
+![image](design/screenshoots/preview.png)
+
 
 ## License
 

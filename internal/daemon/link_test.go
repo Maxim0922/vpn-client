@@ -90,3 +90,32 @@ remote 198.51.100.1 1194
 	}
 }
 
+func TestRemoveServerCleansSettings(t *testing.T) {
+	old := state.DefaultDir
+	state.DefaultDir = t.TempDir()
+	defer func() { state.DefaultDir = old }()
+
+	m := NewManager(nil, nil)
+	vlessLink := "vless://b831381d-6324-4d53-ad4f-8cda48b30811@example.com:443#Frankfurt"
+	if err := m.ImportConfig("Frankfurt", vlessLink); err != nil {
+		t.Fatalf("import vless: %v", err)
+	}
+
+	_ = m.SetSettings(Settings{
+		LastServer: "Frankfurt",
+		Favorites:  []string{"Frankfurt", "other"},
+	})
+
+	if err := m.RemoveServer("Frankfurt"); err != nil {
+		t.Fatalf("remove server: %v", err)
+	}
+
+	st := m.GetSettings()
+	if st.LastServer != "" {
+		t.Errorf("expected LastServer to be cleared, got %q", st.LastServer)
+	}
+	if len(st.Favorites) != 1 || st.Favorites[0] != "other" {
+		t.Errorf("expected Favorites to only contain 'other', got %v", st.Favorites)
+	}
+}
+

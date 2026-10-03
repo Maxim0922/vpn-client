@@ -175,7 +175,7 @@ html, body {
 
 .mv-server {
   display: grid;
-  grid-template-columns: 44px 1fr 160px 60px 60px 28px;
+  grid-template-columns: 44px 1fr 140px 60px 60px 24px 24px;
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3);
@@ -201,6 +201,24 @@ html, body {
 .mv-ping { font-family: var(--font-mono); font-size: 12px; color: var(--ink-muted); text-align: right; }
 .mv-star { color: var(--ink-faint); cursor: default; }
 .mv-star.is-on { color: var(--accent); }
+.mv-del {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-faint);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  border-radius: var(--radius-xs);
+  transition: color var(--duration-fast) ease-out, background var(--duration-fast) ease-out;
+}
+.mv-del:hover {
+  color: var(--danger);
+  background: var(--bg-300);
+}
 
 .mv-search {
   width: 100%;

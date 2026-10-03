@@ -11,7 +11,15 @@
 
   async function connect(id: string) { try { await api.connect(id); } catch (e) { console.error(e); } }
   async function toggleFav(id: string) { await api.toggleFavorite(id); await refreshServers(); }
-  async function remove(id: string) { await api.removeServer(id); await refreshServers(); }
+  async function remove(id: string) {
+    if (!confirm(`Delete configuration "${id}"?`)) return;
+    try {
+      await api.removeServer(id);
+      await refreshServers();
+    } catch (e) {
+      console.error(e);
+    }
+  }
 
   let link = $state("");
   let importError = $state("");
@@ -94,6 +102,7 @@
     <span class="mv-host">{s.protocol === "vless" ? "VLESS" : s.protocol === "openvpn" ? "OpenVPN" : "WireGuard"}</span>
     <div class="mv-load"><div class="mv-load__fill" style="width: 40%"></div></div>
     <span class="mv-ping">—</span>
-    <span class="mv-star {s.favorite ? 'is-on' : ''}" role="button" tabindex="0" onclick={() => toggleFav(s.id)} onkeydown={() => {}}>★</span>
+    <span class="mv-star {s.favorite ? 'is-on' : ''}" role="button" tabindex="0" onclick={() => toggleFav(s.id)} onkeydown={() => {}} title="Favorite">★</span>
+    <button class="mv-del" type="button" title="Delete {s.id}" onclick={(e) => { e.stopPropagation(); remove(s.id); }}>✕</button>
   </div>
 {/snippet}

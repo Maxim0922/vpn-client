@@ -212,11 +212,38 @@ func (m *Manager) RemoveServer(id string) error {
 	if err := validID(id); err != nil {
 		return err
 	}
+	m.mu.Lock()
+	connected := m.status.State == StateConnected && m.status.Server == id
+	m.mu.Unlock()
+	if connected {
+		_ = m.Disconnect(context.Background())
+	}
+
 	for ext := range serverExt {
 		if err := os.Remove(serverPath(id, ext)); err != nil && !os.IsNotExist(err) {
 			return err
 		}
 	}
+
+	s := m.GetSettings()
+	changed := false
+	if s.LastServer == id {
+		s.LastServer = ""
+		changed = true
+	}
+	var newFavs []string
+	for _, f := range s.Favorites {
+		if f != id {
+			newFavs = append(newFavs, f)
+		} else {
+			changed = true
+		}
+	}
+	if changed {
+		s.Favorites = newFavs
+		_ = m.SetSettings(s)
+	}
+	m.logf("removed server %q", id)
 	return nil
 }
 

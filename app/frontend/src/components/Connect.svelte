@@ -16,7 +16,12 @@
   const connected = $derived($status.state === "connected");
   const city = $derived($status.server || "—");
   const protocol = $derived(
-    $servers.find((s) => s.id === ($status.server || $settings.lastServer))?.protocol === "vless" ? "VLESS" : "WireGuard",
+    (() => {
+      const p = $servers.find((s) => s.id === ($status.server || $settings.lastServer))?.protocol;
+      if (p === "vless") return "VLESS";
+      if (p === "openvpn") return "OpenVPN";
+      return "WireGuard";
+    })(),
   );
 
   function pickServer(): string {

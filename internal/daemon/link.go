@@ -12,6 +12,7 @@ import (
 
 	xexec "github.com/max-tsx/max-vpn/internal/exec"
 	"github.com/max-tsx/max-vpn/internal/tunnel"
+	"github.com/max-tsx/max-vpn/internal/openvpn"
 	"github.com/max-tsx/max-vpn/internal/vless"
 )
 
@@ -29,6 +30,34 @@ type VLESSTunnel interface {
 }
 
 var StartVLESS func(c *vless.Config, o vless.Options) (VLESSTunnel, error)
+
+type OpenVPNTunnel interface {
+	Name() string
+	LastAlive() time.Time
+	Err() error
+	Close() error
+}
+
+var StartOpenVPN func(ctx context.Context, cfg *openvpn.Config, confPath string, iface string, log func(string)) (OpenVPNTunnel, error)
+
+type openvpnLink struct {
+	OpenVPNTunnel
+	runner xexec.Runner
+}
+
+func (l openvpnLink) Stats() (tunnel.Stats, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	out, err := l.runner.Run(ctx, "netstat", "-I", l.Name(), "-b", "-n")
+	if err != nil {
+		return tunnel.Stats{}, err
+	}
+	rx, tx, err := parseNetstatBytes(out, l.Name())
+	if err != nil {
+		return tunnel.Stats{}, err
+	}
+	return tunnel.Stats{RxBytes: rx, TxBytes: tx, LastHandshake: l.LastAlive()}, nil
+}
 
 type vlessLink struct {
 	VLESSTunnel

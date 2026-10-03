@@ -19,7 +19,7 @@ export interface Settings {
   connectOnLaunch: boolean; lastServer: string; favorites: string[];
   publicIPService: string;
 }
-export interface ServerInfo { id: string; favorite: boolean; protocol: "wireguard" | "vless"; }
+export interface ServerInfo { id: string; favorite: boolean; protocol: "wireguard" | "vless" | "openvpn"; }
 export interface LogEntry { ts: string; level: string; msg: string; }
 
 async function call<T>(method: string, ...args: any[]): Promise<T> {

@@ -41,7 +41,7 @@
   }
 
   async function importFile(f: File) {
-    await importText(f.name.replace(/\.(conf|txt)$/i, ""), await f.text());
+    await importText(f.name.replace(/\.(conf|ovpn|txt)$/i, ""), await f.text());
   }
   async function onFile(e: Event) {
     const f = (e.target as HTMLInputElement).files?.[0];
@@ -62,11 +62,11 @@
 <div class="mv-row mv-spread">
   <input class="mv-search" placeholder="Search locations (⌘F)" bind:value={query} />
   <button class="mv-btn mv-btn--secondary" style="margin-left: var(--space-3);" onclick={() => fileInput.click()}>Import file</button>
-  <input type="file" accept=".conf,.txt" bind:this={fileInput} onchange={onFile} style="display:none" />
+  <input type="file" accept=".conf,.ovpn,.txt" bind:this={fileInput} onchange={onFile} style="display:none" />
 </div>
 
 <div role="region" aria-label="Drop a config file or paste a vless link" ondragover={(e) => e.preventDefault()} ondrop={onDrop} style="margin-top: var(--space-4); border: 1px dashed var(--line); border-radius: var(--radius-md); padding: var(--space-2);">
-  <div class="mv-label" style="padding: var(--space-2);">Drop a WireGuard .conf here, or paste a vless:// link</div>
+  <div class="mv-label" style="padding: var(--space-2);">Drop a WireGuard .conf, OpenVPN .ovpn, or paste a vless:// link</div>
   <form class="mv-row" style="padding: 0 var(--space-2) var(--space-2);" onsubmit={(e) => { e.preventDefault(); addLink(); }}>
     <input class="mv-search" style="flex: 1;" placeholder="vless://…" bind:value={link} />
     <button class="mv-btn mv-btn--secondary" type="submit" disabled={!isLink(link)}>Add</button>
@@ -82,7 +82,7 @@
 {/if}
 
 <div class="mv-label" style="margin: var(--space-4) 0 var(--space-2);">All locations</div>
-{#if !all.length}<div class="text-faint">No servers. Import a WireGuard .conf or a vless:// link to begin.</div>{/if}
+{#if !all.length}<div class="text-faint">No servers. Import a WireGuard .conf, OpenVPN .ovpn, or a vless:// link to begin.</div>{/if}
 {#each all as s, i (s.id)}
   {@render row(s, i)}
 {/each}
@@ -91,7 +91,7 @@
   <div class="mv-server mv-stagger {$status.server === s.id ? 'is-selected' : ''}" style="--i: {Math.min(i, 12)}">
     <span class="mv-cc">{cc(s.id)}</span>
     <button class="mv-btn mv-btn--ghost" style="justify-self:start;padding:0" onclick={() => connect(s.id)}>{s.id}</button>
-    <span class="mv-host">{s.protocol === "vless" ? "VLESS" : "WireGuard"}</span>
+    <span class="mv-host">{s.protocol === "vless" ? "VLESS" : s.protocol === "openvpn" ? "OpenVPN" : "WireGuard"}</span>
     <div class="mv-load"><div class="mv-load__fill" style="width: 40%"></div></div>
     <span class="mv-ping">—</span>
     <span class="mv-star {s.favorite ? 'is-on' : ''}" role="button" tabindex="0" onclick={() => toggleFav(s.id)} onkeydown={() => {}}>★</span>

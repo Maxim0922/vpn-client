@@ -15,6 +15,7 @@ import (
 	"github.com/max-tsx/max-vpn/internal/firewall"
 	"github.com/max-tsx/max-vpn/internal/logbuf"
 	"github.com/max-tsx/max-vpn/internal/netcfg"
+	"github.com/max-tsx/max-vpn/internal/openvpn"
 	"github.com/max-tsx/max-vpn/internal/state"
 	"github.com/max-tsx/max-vpn/internal/stats"
 	"github.com/max-tsx/max-vpn/internal/tunnel"
@@ -80,6 +81,7 @@ func (m *Manager) Logs(since time.Time) []logbuf.Entry { return m.ring.Since(sin
 const (
 	ProtoWireGuard = "wireguard"
 	ProtoVLESS     = "vless"
+	ProtoOpenVPN   = "openvpn"
 )
 
 type ServerInfo struct {
@@ -138,7 +140,11 @@ func (m *Manager) logf(f string, a ...any) { m.log(fmt.Sprintf(f, a...)) }
 
 func serversDir() string { return filepath.Join(state.DefaultDir, "servers") }
 
-var serverExt = map[string]string{".conf": ProtoWireGuard, ".vless": ProtoVLESS}
+var serverExt = map[string]string{
+	".conf":  ProtoWireGuard,
+	".vless": ProtoVLESS,
+	".ovpn":  ProtoOpenVPN,
+}
 
 func serverPath(id, ext string) string { return filepath.Join(serversDir(), id+ext) }
 
@@ -159,6 +165,11 @@ func (m *Manager) ImportConfig(id, confText string) error {
 			return fmt.Errorf("invalid vless link: %w", err)
 		}
 		ext, data = ".vless", strings.TrimSpace(confText)+"\n"
+	} else if openvpn.IsConfig(confText) {
+		if _, err := openvpn.Parse(confText); err != nil {
+			return fmt.Errorf("invalid openvpn config: %w", err)
+		}
+		ext, data = ".ovpn", confText
 	} else if _, err := wgconf.Parse(confText); err != nil {
 		return fmt.Errorf("invalid config: %w", err)
 	}
@@ -212,11 +223,15 @@ func (m *Manager) RemoveServer(id string) error {
 type server struct {
 	wg *wgconf.Config
 	vl *vless.Config
+	ov *openvpn.Config
 }
 
 func (s server) String() string {
 	if s.vl != nil {
 		return s.vl.String()
+	}
+	if s.ov != nil {
+		return s.ov.String()
 	}
 	return s.wg.String()
 }
@@ -225,6 +240,9 @@ func (s server) endpoint() (host, port, proto string, err error) {
 	if s.vl != nil {
 		host, port = s.vl.Endpoint()
 		return host, port, "tcp", nil
+	}
+	if s.ov != nil {
+		return s.ov.Endpoint()
 	}
 	host, port, err = s.wg.Endpoint()
 	return host, port, "udp", err
@@ -240,6 +258,13 @@ func (m *Manager) loadServer(id string) (server, error) {
 			return server{}, fmt.Errorf("server %q: %w", id, err)
 		}
 		return server{vl: c}, nil
+	}
+	if data, err := os.ReadFile(serverPath(id, ".ovpn")); err == nil {
+		c, err := openvpn.Parse(string(data))
+		if err != nil {
+			return server{}, fmt.Errorf("server %q: %w", id, err)
+		}
+		return server{ov: c}, nil
 	}
 	data, err := os.ReadFile(serverPath(id, ".conf"))
 	if err != nil {
@@ -283,6 +308,9 @@ func (m *Manager) Connect(ctx context.Context, id string) error {
 	if srv.vl != nil && StartVLESS == nil {
 		return fmt.Errorf("this build has no VLESS support")
 	}
+	if srv.ov != nil && StartOpenVPN == nil {
+		return fmt.Errorf("this build has no OpenVPN support")
+	}
 	set := m.GetSettings()
 	m.setStatus(Status{State: StateConnecting, Server: id})
 	m.logf("connecting to %q (%v)", id, srv)
@@ -319,6 +347,8 @@ func (m *Manager) Connect(ctx context.Context, id string) error {
 	var dns []netip.Addr
 	if srv.wg != nil {
 		dns = srv.wg.Interface.DNS
+	} else if srv.ov != nil {
+		dns = srv.ov.DNS
 	}
 	if len(set.CustomDNS) > 0 {
 		dns = nil
@@ -337,6 +367,14 @@ func (m *Manager) Connect(ctx context.Context, id string) error {
 		if err := m.upVLESS(srv.vl, endpointIP, dns[0], st); err != nil {
 			return m.fail(id, "start vless", err, st)
 		}
+	} else if srv.ov != nil {
+		if len(dns) == 0 {
+			dns = []netip.Addr{netip.MustParseAddr("1.1.1.1"), netip.MustParseAddr("8.8.8.8")}
+		}
+		if err := m.upOpenVPN(ctx, srv.ov, id, endpointIP, st); err != nil {
+			return m.fail(id, "start openvpn", err, st)
+		}
+		hasV6 = srv.ov.HasIPv6
 	} else {
 		if err := m.upWireGuard(ctx, srv.wg, endpointIP, st); err != nil {
 			return m.fail(id, "start wireguard", err, st)
@@ -474,6 +512,20 @@ func (m *Manager) upVLESS(cfg *vless.Config, endpointIP string, dns netip.Addr, 
 	return nil
 }
 
+func (m *Manager) upOpenVPN(ctx context.Context, cfg *openvpn.Config, id string, endpointIP string, st *state.State) error {
+	iface, err := nextUtun()
+	if err != nil {
+		return err
+	}
+	cPath := serverPath(id, ".ovpn")
+	t, err := StartOpenVPN(ctx, cfg, cPath, iface, m.log)
+	if err != nil {
+		return err
+	}
+	m.setLink(openvpnLink{OpenVPNTunnel: t, runner: m.runner}, st)
+	return nil
+}
+
 func (m *Manager) setLink(l link, st *state.State) {
 	st.Iface = l.Name()
 	_ = state.Save(st)
@@ -502,6 +554,24 @@ func (m *Manager) waitReady(ctx context.Context) error {
 			case <-ctx.Done():
 				return fmt.Errorf("no response through proxy within %s: %w", HandshakeTimeout, err)
 			case <-time.After(500 * time.Millisecond):
+			}
+		}
+	}
+
+	if ov, ok := l.(openvpnLink); ok {
+		tick := time.NewTicker(300 * time.Millisecond)
+		defer tick.Stop()
+		for {
+			if err := ov.Err(); err != nil {
+				return err
+			}
+			if s, err := l.Stats(); err == nil && !s.LastHandshake.IsZero() {
+				return nil
+			}
+			select {
+			case <-ctx.Done():
+				return fmt.Errorf("openvpn handshake timed out within %s", HandshakeTimeout)
+			case <-tick.C:
 			}
 		}
 	}

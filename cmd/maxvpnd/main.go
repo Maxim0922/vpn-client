@@ -14,6 +14,7 @@ import (
 	xexec "github.com/max-tsx/max-vpn/internal/exec"
 	"github.com/max-tsx/max-vpn/internal/ipc"
 	"github.com/max-tsx/max-vpn/internal/monitor"
+	"github.com/max-tsx/max-vpn/internal/openvpn"
 	"github.com/max-tsx/max-vpn/internal/vless"
 	"github.com/max-tsx/max-vpn/internal/vless/singbox"
 )
@@ -21,6 +22,13 @@ import (
 func init() {
 	daemon.StartVLESS = func(c *vless.Config, o vless.Options) (daemon.VLESSTunnel, error) {
 		t, err := singbox.Start(c, o)
+		if err != nil {
+			return nil, err
+		}
+		return t, nil
+	}
+	daemon.StartOpenVPN = func(ctx context.Context, c *openvpn.Config, confPath string, iface string, log func(string)) (daemon.OpenVPNTunnel, error) {
+		t, err := openvpn.Start(ctx, c, confPath, iface, log)
 		if err != nil {
 			return nil, err
 		}
